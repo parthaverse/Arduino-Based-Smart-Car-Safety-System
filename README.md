@@ -10,12 +10,12 @@ This is an IoT-based Arduino project to create a smart car with the following sa
 
 ##  Components Used:
 - Arduino Uno
-- Ultrasonic Sensor
 - L293D Motor Shield
-- Temperature Sensor
-- MQ2 Smoke Sensor
+- Ultrasonic Sensor
 - Current Sensor
 - Voltage Sensor
+- Temperature Sensor
+- MQ2 Smoke Sensor
 - Bluetooth Module
 - Android App for control and alerts
 
