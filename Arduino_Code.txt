@@ -1,0 +1,246 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <AFMotor.h>
+
+// OLED Display Config
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// Ultrasonic Sensor
+#define TRIG_PIN 2      // Using digital pin D2
+#define ECHO_PIN 3      // Using digital pin D3
+#define SAFE_DISTANCE 10  
+#define HYSTERESIS_MARGIN 3   // Additional margin (in cm) used for hysteresis
+
+// Voltage and Current Sensor
+#define CURRENT_PIN A3
+#define VOLTAGE_PIN A2
+#define VOLTAGE_RATIO 5.0  
+#define CURRENT_SENSITIVITY 0.185 
+const int numReadings = 10;  // Reduced filter size for faster response
+
+// Motors
+AF_DCMotor motor1(1);
+AF_DCMotor motor2(2);
+AF_DCMotor motor3(3);
+AF_DCMotor motor4(4);
+
+// Filter variables
+float currentReadings[numReadings];
+float voltageReadings[numReadings];
+int index = 0;
+float currentTotal = 0;
+float voltageTotal = 0;
+
+char lastCommand = 'S';  
+bool obstacleDetected = false;
+unsigned long lastOLEDUpdate = 0;
+const int OLED_UPDATE_INTERVAL = 500; // Update OLED every 500ms
+
+void setup() {
+    Serial.begin(9600);
+    
+    pinMode(TRIG_PIN, OUTPUT);
+    pinMode(ECHO_PIN, INPUT);
+    
+    motor1.setSpeed(255);
+    motor2.setSpeed(255);
+    motor3.setSpeed(255);
+    motor4.setSpeed(255);
+    
+    stopCar();
+
+    // Initialize OLED Display
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        for (;;);
+    }
+    display.clearDisplay();
+    display.display();
+    
+    // Initialize filter arrays
+    for (int i = 0; i < numReadings; i++) {
+        currentReadings[i] = 0;
+        voltageReadings[i] = 0;
+    }
+}
+
+void loop() {
+    // Read commands first to prioritize movement
+    if (Serial.available()) {  
+        lastCommand = Serial.read();
+    }
+
+    handleMovement();
+    
+    // Update obstacles with the hysteresis logic
+    obstacleDetected = checkObstacle();
+
+    // Read sensors
+    updateSensorReadings();
+    
+    // Update OLED every 500ms instead of every loop
+    if (millis() - lastOLEDUpdate >= OLED_UPDATE_INTERVAL) {
+        lastOLEDUpdate = millis();
+        updateOLED();
+    }
+}
+
+void updateSensorReadings() {
+    float currentRaw = analogRead(CURRENT_PIN) * (5.0 / 1023.0);
+    float voltageRaw = analogRead(VOLTAGE_PIN) * (5.0 / 1023.0);
+
+    // Update moving average filter
+    currentTotal -= currentReadings[index];
+    voltageTotal -= voltageReadings[index];
+
+    currentReadings[index] = currentRaw;
+    voltageReadings[index] = voltageRaw;
+
+    currentTotal += currentReadings[index];
+    voltageTotal += voltageReadings[index];
+
+    index = (index + 1) % numReadings;
+}
+
+void handleMovement() {
+    switch (lastCommand) {
+        case 'F':
+            if (!obstacleDetected) moveForward();
+            else stopCar();
+            break;
+        case 'B':
+            moveBackward();
+            break;
+        case 'L':
+            if (!obstacleDetected) turnLeft();
+            else stopCar();
+            break;
+        case 'R':
+            if (!obstacleDetected) turnRight();
+            else stopCar();
+            break;
+        default:
+            stopCar();
+            break;
+    }
+}
+
+// The modified checkObstacle() implements hysteresis.
+// It uses getSingleDistance() to obtain the average distance for this loop.
+bool checkObstacle() {
+    int distance = getSingleDistance();
+    bool newObstacleState;
+    if (obstacleDetected) {
+        // If an obstacle was previously detected, only clear it if the distance increases enough.
+        if (distance > (SAFE_DISTANCE + HYSTERESIS_MARGIN)) {
+            newObstacleState = false;
+        } else {
+            newObstacleState = true;
+        }
+    } else {
+        // If no obstacle was previously detected, only set it if the distance is too close.
+        if (distance <= SAFE_DISTANCE) {
+            newObstacleState = true;
+        } else {
+            newObstacleState = false;
+        }
+    }
+    return newObstacleState;
+}
+
+// Modified ultrasonic sensor function with averaging
+int getSingleDistance() {
+    const int samples = 5;  // Number of samples for averaging
+    long totalDuration = 0;
+    for (int i = 0; i < samples; i++) {
+        digitalWrite(TRIG_PIN, LOW);
+        delayMicroseconds(2);
+        digitalWrite(TRIG_PIN, HIGH);
+        delayMicroseconds(10);
+        digitalWrite(TRIG_PIN, LOW);
+        long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+        totalDuration += duration;
+        delay(2); // Small delay between samples
+    }
+    long avgDuration = totalDuration / samples;
+    if (avgDuration == 0)
+        return 999;  
+    return avgDuration * 0.034 / 2;
+}
+
+void updateOLED() {
+    float current = abs((currentTotal / numReadings - 2.5)) / CURRENT_SENSITIVITY;
+    float voltage = (voltageTotal / numReadings) * VOLTAGE_RATIO;
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    
+    // Display Voltage
+    display.setCursor(0, 0);
+    display.print("Voltage: ");
+    display.print(voltage, 1);
+    display.println("V");
+    
+    // Display Current
+    display.setCursor(0, 10);
+    display.print("Current: ");
+    display.print(current, 2);
+    display.println("A");
+    
+    // Display Command Status
+    display.setCursor(0, 20);
+    display.print("Status: ");
+    switch (lastCommand) {
+        case 'F': display.println("Forward"); break;
+        case 'B': display.println("Backward"); break;
+        case 'L': display.println("Left"); break;
+        case 'R': display.println("Right"); break;
+        default: display.println("Stopped"); break;
+    }
+    
+    // Display Obstacle info
+    display.setCursor(0, 30);
+    display.print("Obstacle: ");
+    display.println(obstacleDetected ? "Yes" : "No");
+    
+    display.display();
+}
+
+// Motor control functions
+void moveForward() {
+    motor1.run(FORWARD);
+    motor2.run(FORWARD);
+    motor3.run(FORWARD);
+    motor4.run(FORWARD);
+}
+
+void moveBackward() {
+    motor1.run(BACKWARD);
+    motor2.run(BACKWARD);
+    motor3.run(BACKWARD);
+    motor4.run(BACKWARD);
+}
+
+void turnLeft() {
+    motor1.run(BACKWARD);
+    motor2.run(BACKWARD);
+    motor3.run(FORWARD);
+    motor4.run(FORWARD);
+}
+
+void turnRight() {
+    motor1.run(FORWARD);
+    motor2.run(FORWARD);
+    motor3.run(BACKWARD);
+    motor4.run(BACKWARD);
+}
+
+void stopCar() {
+    motor1.run(RELEASE);
+    motor2.run(RELEASE);
+    motor3.run(RELEASE);
+    motor4.run(RELEASE);
+}
