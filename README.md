@@ -5,7 +5,7 @@ This is an IoT-based Arduino project to create a smart car with the following sa
 - Obstacle detection
 - Battery health monitoring
 - Smoke/gas detection
-- Bluetooth module and Android app** to control the car and receive system alerts and notifications
+- Bluetooth module and Android app to control the car and receive system alerts and notifications
 
 
 ##  Components Used:
@@ -15,16 +15,19 @@ This is an IoT-based Arduino project to create a smart car with the following sa
 - L293D Motor Shield
 - Temperature Sensor
 - Bluetooth Module
-- Servo Motor
 - Current Sensor
 - Voltage Sensor
-- Android App (custom-built) for control and alerts
+- Android App for control and alerts
 
 ## Android App Features:
 - Start/stop car
-- Get smoke alert notifications
+- Car status according to obstacle
 - See battery health updates
-- Live obstacle distance display
+- Voltage and current monitoring
+- Battery temperature monitoring
+- Smoke presence monitoring
+- Get smoke alert notifications
+
 
 
 ## Project Model:
