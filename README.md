@@ -31,9 +31,10 @@ This is an IoT-based Arduino project to create a smart car with the following sa
 ## Project Model:
 > ![Car_Model](https://github.com/user-attachments/assets/851b0217-a1e3-4fa4-92c3-1699a707fe9a)
 
-## Android App Model
-> ![Android_App_Model](https://github.com/user-attachments/assets/0d0df67b-fde9-4937-8ac2-66c4176c1bf3)
-
 
 ## Circuit Diagram:
 >![Circuit_Diagram](https://github.com/user-attachments/assets/e1cd4978-9fe9-41b7-8218-eb54a7e49cf5)
+
+
+## Android App Model
+> ![Android_App_Model](https://github.com/user-attachments/assets/0d0df67b-fde9-4937-8ac2-66c4176c1bf3)
